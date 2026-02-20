@@ -1,5 +1,6 @@
 export const runtime = "nodejs";
 
+import { sendMessageSchema } from "@/app/modules/chat/chat.schema";
 import { NextResponse } from "next/server";
 import { ChatService } from "@/app/modules/chat/chat.service";
 
@@ -8,16 +9,23 @@ const chatService = new ChatService();
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { userId, content } = body;
+     const parsed = sendMessageSchema.safeParse(body);
 
-    await chatService.sendUserMessage(userId, content);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { userId, content } = parsed.data;
 
-    return NextResponse.json({ success: true });
+    const reply = await chatService.sendUserMessage(userId, content);
+
+    return NextResponse.json({ reply });
   } catch (error: unknown) {
-    console.error("POST /api/chat error:", error);
-    const message = error instanceof Error ? error.message : "Failed to send message";
+    console.error(error);
     return NextResponse.json(
-      { error: message },
+      { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
     );
   }
