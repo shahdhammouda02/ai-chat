@@ -13,9 +13,23 @@ export class ChatService {
       content,
       role: "user",
     });
+
+    const aiReply = await this.generateAIReply(content);
+
+    await this.chatRepository.createMessage({
+      userId,
+      content: aiReply,
+      role: "assistant",
+    });
+
+    return aiReply;
   }
 
   async getChatHistory(userId: string) {
     return await this.chatRepository.getMessages(userId);
+  }
+
+  private async generateAIReply(content: string): Promise<string> {
+    return `You said: "${content}". This is a mock AI response.`;
   }
 }

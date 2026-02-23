@@ -1,4 +1,5 @@
 import { db } from "@/app/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 export class ChatRepository {
   async createMessage(data: {
@@ -8,7 +9,7 @@ export class ChatRepository {
   }) {
     await db.collection("messages").add({
       ...data,
-      createdAt: new Date(),
+      createdAt: FieldValue.serverTimestamp(),
     });
   }
 

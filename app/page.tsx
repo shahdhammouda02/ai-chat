@@ -18,6 +18,23 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  useEffect(() => {
+  const fetchHistory = async () => {
+    const res = await fetch("/api/chat?userId=demo-user");
+    const data = await res.json();
+
+    if (res.ok) {
+      setMessages(
+        data.messages.map((msg: Message) => ({
+          role: msg.role,
+          content: msg.content,
+        }))
+      );
+    }
+  };
+
+  fetchHistory();
+}, []);
   const handleSend = async () => {
     if (!input.trim()) return
 
@@ -26,15 +43,26 @@ export default function ChatPage() {
     setInput("")
     setLoading(true)
 
-    // Simulated AI response (replace with API later)
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: "Hello! I'm your AI assistant. How can I help today?",
-      }
-      setMessages((prev) => [...prev, assistantMessage])
-      setLoading(false)
-    }, 1000)
+   try{
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: "demo-user", content: userMessage.content }),
+    });
+
+    const data = await res.json();
+    if(!res.ok) {
+      throw new Error(data.error || "Something went wrong");
+    }
+
+    const assistantMessage: Message = { role: "assistant", content: data.reply };
+
+    setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error: unknown) {
+      console.error("Error sending message:", error);
+   } finally {
+    setLoading(false);
+   }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
