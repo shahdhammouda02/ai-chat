@@ -1,4 +1,5 @@
 import { ChatRepository } from "./chat.repository";
+import { generateAIResponse } from "@/app/lib/gemini";
 
 export class ChatService {
   private chatRepository: ChatRepository;
@@ -14,7 +15,7 @@ export class ChatService {
       role: "user",
     });
 
-    const aiReply = await this.generateAIReply(content);
+    const aiReply = await generateAIResponse(content);
 
     await this.chatRepository.createMessage({
       userId,
@@ -29,7 +30,7 @@ export class ChatService {
     return await this.chatRepository.getMessages(userId);
   }
 
-  private async generateAIReply(content: string): Promise<string> {
-    return `You said: "${content}". This is a mock AI response.`;
-  }
+  // private async generateAIReply(content: string): Promise<string> {
+  //   return `You said: "${content}". This is a mock AI response.`;
+  // }
 }
