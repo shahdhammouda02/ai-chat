@@ -151,34 +151,57 @@ describe('ChatPage', () => {
   })
 
   it('disables send button while loading', async () => {
-    mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          reply: "Hello! I'm your AI assistant. How can I help today?",
-        }),
-      })
-
-    render(<ChatPage />)
-
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalled()
+  mockFetch
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) })
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        reply: "Hello! I'm your AI assistant. How can I help today?",
+      }),
     })
 
-    const sendButton = screen.getByRole('button', { name: /send/i })
-    const input = screen.getByPlaceholderText('Type your message...')
+  render(<ChatPage />)
 
-    fireEvent.change(input, { target: { value: 'Test' } })
-
-    await act(async () => {
-      fireEvent.click(sendButton)
-    })
-
-    await waitFor(() => {
-      expect(sendButton).not.toBeDisabled()
-    })
+  await waitFor(() => {
+    expect(mockFetch).toHaveBeenCalled()
   })
+
+  const sendButton = screen.getByRole('button', { name: /send/i })
+  const input = screen.getByPlaceholderText('Type your message...')
+
+  fireEvent.change(input, { target: { value: 'Test' } })
+
+  await act(async () => {
+    fireEvent.click(sendButton)
+  })
+
+  // After sending, input is cleared → button should be disabled
+  await waitFor(() => {
+    expect(sendButton).toBeDisabled()
+  })
+})
+
+   it('disables send button when input is empty or whitespace', async () => {
+    await renderWithHistory();
+
+    const sendButton = screen.getByRole('button', { name: /send/i });
+    const input = screen.getByPlaceholderText('Type your message...');
+
+    // Initially empty → disabled
+    expect(sendButton).toBeDisabled();
+
+    // Only spaces → still disabled (trim check)
+    fireEvent.change(input, { target: { value: '   ' } });
+    expect(sendButton).toBeDisabled();
+
+    // Non‑empty text → enabled
+    fireEvent.change(input, { target: { value: 'Hello' } });
+    expect(sendButton).not.toBeDisabled();
+
+    // Cleared → disabled again
+    fireEvent.change(input, { target: { value: '' } });
+    expect(sendButton).toBeDisabled();
+  });
 
   it('scrolls to bottom when messages update', async () => {
   mockFetch

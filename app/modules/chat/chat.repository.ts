@@ -1,5 +1,6 @@
 import { db } from "@/app/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { ChatMessage } from "./chat.types";
 
 export class ChatRepository {
   async createMessage(data: {
@@ -8,7 +9,7 @@ export class ChatRepository {
     role: "user" | "assistant";
   }) {
     await db
-      .collection("users")
+      .collection("chatSessions")
       .doc(data.sessionId)
       .collection("messages")
       .add({
@@ -20,15 +21,19 @@ export class ChatRepository {
 
    async getMessages(sessionId: string) {
     const snapshot = await db
-      .collection("users")
+      .collection("chatSessions")
       .doc(sessionId)
       .collection("messages")
       .orderBy("createdAt", "asc")
       .get();
 
-    return snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+   return snapshot.docs.map((doc) => {
+  const data = doc.data() as Omit<ChatMessage, "id">;
+
+  return {
+    id: doc.id,
+    ...data,
+  };
+});
   }
 }

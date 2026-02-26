@@ -17,6 +17,6 @@ export async function generateAIResponse(prompt: string): Promise<string> {
     return text;
   } catch (error) {
     console.error("Gemini API error:", error);
-    throw new Error("Failed to generate AI response");
+    throw new Error("I'm currently experiencing issues. Please try again.");
   }
 }

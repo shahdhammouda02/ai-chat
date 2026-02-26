@@ -15,11 +15,18 @@ export class ChatService {
       role: "user",
     });
 
-     const history = await this.chatRepository.getMessages(sessionId) as { id?: string; role: "user" | "assistant"; content: string }[];
+    const history = await this.chatRepository.getMessages(sessionId);
+    const limitedHistory = history.slice(-10);
 
-  const formattedPrompt = history
-    .map(msg => `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}`)
-    .join("\n");
+    const formattedPrompt = `
+You are a professional, helpful AI assistant.
+Be concise, clear, and accurate.
+
+${limitedHistory
+  .map((msg) => `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}`)
+  .join("\n")}
+`;
+
     const aiReply = await generateAIResponse(formattedPrompt);
 
     await this.chatRepository.createMessage({

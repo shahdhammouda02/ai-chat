@@ -139,7 +139,7 @@ export default function ChatPage() {
         />
         <button
           onClick={handleSend}
-          disabled={loading}
+          disabled={loading || !input.trim()}
           className="bg-indigo-500 text-white px-6 py-3 rounded-xl text-sm font-medium hover:bg-indigo-600 transition disabled:opacity-50"
         >
           Send
