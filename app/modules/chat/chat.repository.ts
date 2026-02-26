@@ -3,24 +3,30 @@ import { FieldValue } from "firebase-admin/firestore";
 
 export class ChatRepository {
   async createMessage(data: {
-    userId: string;
+    sessionId: string;
     content: string;
     role: "user" | "assistant";
   }) {
-    await db.collection("messages").add({
-      ...data,
-      createdAt: FieldValue.serverTimestamp(),
-    });
+    await db
+      .collection("users")
+      .doc(data.sessionId)
+      .collection("messages")
+      .add({
+        content: data.content,
+        role: data.role,
+        createdAt: FieldValue.serverTimestamp(),
+      });
   }
 
-  async getMessages(userId: string) {
+   async getMessages(sessionId: string) {
     const snapshot = await db
+      .collection("users")
+      .doc(sessionId)
       .collection("messages")
-      .where("userId", "==", userId)
       .orderBy("createdAt", "asc")
       .get();
 
-    return snapshot.docs.map(doc => ({
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));

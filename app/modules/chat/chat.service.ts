@@ -8,17 +8,22 @@ export class ChatService {
     this.chatRepository = new ChatRepository();
   }
 
-  async sendUserMessage(userId: string, content: string) {
+  async sendUserMessage(sessionId: string, content: string) {
     await this.chatRepository.createMessage({
-      userId,
+      sessionId,
       content,
       role: "user",
     });
 
-    const aiReply = await generateAIResponse(content);
+     const history = await this.chatRepository.getMessages(sessionId) as { id?: string; role: "user" | "assistant"; content: string }[];
+
+  const formattedPrompt = history
+    .map(msg => `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}`)
+    .join("\n");
+    const aiReply = await generateAIResponse(formattedPrompt);
 
     await this.chatRepository.createMessage({
-      userId,
+      sessionId,
       content: aiReply,
       role: "assistant",
     });
@@ -26,8 +31,8 @@ export class ChatService {
     return aiReply;
   }
 
-  async getChatHistory(userId: string) {
-    return await this.chatRepository.getMessages(userId);
+  async getChatHistory(sessionId: string) {
+    return await this.chatRepository.getMessages(sessionId);
   }
 
   // private async generateAIReply(content: string): Promise<string> {

@@ -17,9 +17,9 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    const { userId, content } = parsed.data;
+    const { sessionId, content } = parsed.data;
 
-    const reply = await chatService.sendUserMessage(userId, content);
+    const reply = await chatService.sendUserMessage(sessionId, content);
 
     return NextResponse.json({ reply });
   } catch (error: unknown) {
@@ -34,13 +34,13 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("userId");
+    const sessionId = searchParams.get("sessionId");
 
-    if (!userId) {
-      return NextResponse.json({ error: "userId is required" }, { status: 400 });
+    if (!sessionId) {
+      return NextResponse.json({ error: "sessionId is required" }, { status: 400 });
     }
 
-    const messages = await chatService.getChatHistory(userId);
+    const messages = await chatService.getChatHistory(sessionId);
 
     return NextResponse.json({ messages });
   } catch (error: unknown) {

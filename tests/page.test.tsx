@@ -1,6 +1,16 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import ChatPage from '@/app/page'
 
+Object.defineProperty(global, "crypto", {
+  value: {
+    randomUUID: jest.fn(() => "test-session-id"),
+  },
+})
+
+beforeEach(() => {
+  localStorage.clear()
+})
+
 const mockScrollIntoView = jest.fn()
 window.HTMLElement.prototype.scrollIntoView = mockScrollIntoView
 
@@ -17,7 +27,7 @@ const renderWithHistory = async () => {
 
   await waitFor(() => {
     expect(mockFetch).toHaveBeenCalledWith(
-      "/api/chat?userId=demo-user"
+      "/api/chat?sessionId=test-session-id"
     )
   })
 }

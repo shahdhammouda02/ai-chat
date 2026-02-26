@@ -7,34 +7,53 @@ type Message = {
   content: string
 }
 
+function getOrCreateSessionId() {
+  let sessionId = localStorage.getItem("chat_session_id")
+
+  if (!sessionId) {
+    sessionId = crypto.randomUUID()
+    localStorage.setItem("chat_session_id", sessionId)
+  }
+
+  return sessionId
+}
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
+  const [sessionId, setSessionId] = useState<string | null>(null)
 
   const bottomRef = useRef<HTMLDivElement | null>(null)
+
+   useEffect(() => {
+    const id = getOrCreateSessionId()
+    setSessionId(id)
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  useEffect(() => {
-  const fetchHistory = async () => {
-    const res = await fetch("/api/chat?userId=demo-user");
-    const data = await res.json();
+ useEffect(() => {
+    if (!sessionId) return
 
-    if (res.ok) {
-      setMessages(
-        data.messages.map((msg: Message) => ({
-          role: msg.role,
-          content: msg.content,
-        }))
-      );
+    const fetchHistory = async () => {
+      const res = await fetch(`/api/chat?sessionId=${sessionId}`)
+      const data = await res.json()
+
+      if (res.ok) {
+        setMessages(
+          data.messages.map((msg: Message) => ({
+            role: msg.role,
+            content: msg.content,
+          }))
+        )
+      }
     }
-  };
 
-  fetchHistory();
-}, []);
+    fetchHistory()
+  }, [sessionId])
+
   const handleSend = async () => {
     if (!input.trim()) return
 
@@ -47,7 +66,7 @@ export default function ChatPage() {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: "demo-user", content: userMessage.content }),
+      body: JSON.stringify({ sessionId, content: userMessage.content }),
     });
 
     const data = await res.json();
