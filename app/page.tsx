@@ -32,7 +32,7 @@ export default function ChatPage() {
   // Redirect if not logged in
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push("/login");
+      router.push("/auth/login");
     }
   }, [user, authLoading, router]);
 
@@ -112,7 +112,7 @@ export default function ChatPage() {
     try {
       await signOut(auth);
       localStorage.removeItem("chat_session_id"); // Clear session on logout
-      router.push("/login");
+      router.push("/auth/login");
     } catch (error) {
       console.error("Sign out error:", error);
     }

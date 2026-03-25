@@ -346,7 +346,7 @@ describe('ChatPage', () => {
     render(<ChatPage />)
 
     await waitFor(() => {
-      expect(routerPush).toHaveBeenCalledWith('/login')
+      expect(routerPush).toHaveBeenCalledWith('/auth/login')
     })
     expect(mockFetch).not.toHaveBeenCalledWith(expect.stringContaining('/api/chat'))
   })
