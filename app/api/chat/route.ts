@@ -3,13 +3,22 @@ export const runtime = "nodejs";
 import { sendMessageSchema } from "@/app/modules/chat/chat.schema";
 import { NextResponse } from "next/server";
 import { ChatService } from "@/app/modules/chat/chat.service";
+import { verifyFirebaseToken } from "@/app/lib/verify-token";
 
 const chatService = new ChatService();
 
 export async function POST(req: Request) {
   try {
+    // Verify token
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const token = authHeader.split("Bearer ")[1];
+    await verifyFirebaseToken(token);
+
     const body = await req.json();
-     const parsed = sendMessageSchema.safeParse(body);
+    const parsed = sendMessageSchema.safeParse(body);
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -17,8 +26,8 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    const { sessionId, content } = parsed.data;
 
+    const { sessionId, content } = parsed.data;
     const reply = await chatService.sendUserMessage(sessionId, content);
 
     return NextResponse.json({ reply });
@@ -33,6 +42,13 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const token = authHeader.split("Bearer ")[1];
+    await verifyFirebaseToken(token);
+
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get("sessionId");
 
