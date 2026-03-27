@@ -8,41 +8,45 @@ export class ChatService {
     this.chatRepository = new ChatRepository();
   }
 
-  async sendUserMessage(sessionId: string, content: string) {
-    await this.chatRepository.createMessage({
-      sessionId,
-      content,
-      role: "user",
-    });
+  async createNewChat(userId: string): Promise<string> {
+    const title = "New Chat";
+    const chatId = await this.chatRepository.createChat(userId, title);
+    return chatId;
+  }
 
-    const history = await this.chatRepository.getMessages(sessionId);
-    const limitedHistory = history.slice(-10);
+  async getUserChats(userId: string) {
+    return await this.chatRepository.getUserChats(userId);
+  }
+
+  async sendUserMessage(userId: string, chatId: string, content: string) {
+    await this.chatRepository.addMessage(chatId, userId, content, "user");
+
+    const messages = await this.chatRepository.getMessages(chatId, userId);
 
     const formattedPrompt = `
 You are a professional, helpful AI assistant.
 Be concise, clear, and accurate.
 
-${limitedHistory
+${messages
   .map((msg) => `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}`)
   .join("\n")}
 `;
 
     const aiReply = await generateAIResponse(formattedPrompt);
 
-    await this.chatRepository.createMessage({
-      sessionId,
-      content: aiReply,
-      role: "assistant",
-    });
+    await this.chatRepository.addMessage(chatId, userId, aiReply, "assistant");
+
+    const chat = (await this.chatRepository.getUserChats(userId)).find(c => c.id === chatId);
+    if (chat && chat.title === "New Chat" && messages.length === 0) {
+      const titlePrompt = `Generate a short title (max 5 words) for this conversation: ${content}`;
+      const title = await generateAIResponse(titlePrompt);
+      await this.chatRepository.updateChatTitle(chatId, userId, title);
+    }
 
     return aiReply;
   }
 
-  async getChatHistory(sessionId: string) {
-    return await this.chatRepository.getMessages(sessionId);
+  async getChatHistory(userId: string, chatId: string) {
+    return await this.chatRepository.getMessages(chatId, userId);
   }
-
-  // private async generateAIReply(content: string): Promise<string> {
-  //   return `You said: "${content}". This is a mock AI response.`;
-  // }
 }

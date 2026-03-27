@@ -9,6 +9,10 @@ jest.mock('firebase/auth', () => ({
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(() => ({
     push: jest.fn(),
+    replace: jest.fn(),
+  })),
+  useSearchParams: jest.fn(() => ({
+    get: jest.fn(),
   })),
 }))
 
@@ -27,10 +31,9 @@ jest.mock('@/app/lib/firebase-client', () => ({
 }))
 
 import ChatPage from '@/app/page'
-
-// Import the mocked modules after mocks are defined
 import { useAuth } from '@/app/hooks/useAuth'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Chat } from '@/app/modules/chat/chat.types'
 
 Object.defineProperty(global, "crypto", {
   value: {
@@ -50,7 +53,7 @@ const mockFetch = jest.fn()
 global.fetch = mockFetch
 
 // Helper to mock authenticated user
-const mockAuthenticatedUser = (user = { uid: '123', email: 'test@example.com', displayName: 'Test User' }) => {
+const mockAuthenticatedUser = (user: { uid: string; email: string; displayName: string | null } = { uid: '123', email: 'test@example.com', displayName: 'Test User' }) => {
   ;(useAuth as jest.Mock).mockReturnValue({
     user,
     loading: false,
@@ -65,18 +68,31 @@ const mockUnauthenticatedUser = () => {
   })
 }
 
-const renderWithHistory = async () => {
+// Helper to mock searchParams with a chat ID
+const mockUrlChatId = (chatId: string | null) => {
+  const mockGet = jest.fn()
+  mockGet.mockReturnValue(chatId)
+  ;(useSearchParams as jest.Mock).mockReturnValue({
+    get: mockGet,
+  })
+}
+
+// Helper to render page with initial chat list
+const renderWithHistory = async (initialChats: Chat[] = []) => {
   mockAuthenticatedUser()
+  mockUrlChatId(null)
+
+  // Mock initial fetch of chats
   mockFetch.mockResolvedValueOnce({
     ok: true,
-    json: async () => ({ messages: [] }),
+    json: async () => ({ chats: initialChats }),
   })
 
   render(<ChatPage />)
 
   await waitFor(() => {
     expect(mockFetch).toHaveBeenCalledWith(
-      "/api/chat?sessionId=test-session-id",
+      "/api/chats",
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: 'Bearer fake-token' })
       })
@@ -89,22 +105,22 @@ describe('ChatPage', () => {
     mockScrollIntoView.mockClear()
     mockFetch.mockReset()
     ;(useAuth as jest.Mock).mockReset()
-    ;(useRouter as jest.Mock).mockReturnValue({ push: jest.fn() })
+    ;(useRouter as jest.Mock).mockReturnValue({ push: jest.fn(), replace: jest.fn() })
+    ;(useSearchParams as jest.Mock).mockReturnValue({ get: jest.fn() })
   })
 
   it('renders the chat header and input', async () => {
     await renderWithHistory()
-    expect(screen.getByText('AI Chat')).toBeInTheDocument()
+    // There are two elements with "AI Chat", so check that at least one exists
+    expect(screen.getAllByText('AI Chat').length).toBeGreaterThan(0)
     expect(screen.getByPlaceholderText('Type your message...')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument()
   })
 
   it('shows user name in header', async () => {
     mockAuthenticatedUser({ uid: '123', email: 'test@example.com', displayName: 'Test User' })
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ messages: [] }),
-    })
+    mockUrlChatId(null)
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
     render(<ChatPage />)
     await waitFor(() => {
       expect(screen.getByText('Test User')).toBeInTheDocument()
@@ -112,33 +128,49 @@ describe('ChatPage', () => {
   })
 
   it('shows user email if displayName is not available', async () => {
-    mockAuthenticatedUser({ uid: '123', email: 'test@example.com', displayName: "" })
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ messages: [] }),
-    })
+    mockAuthenticatedUser({ uid: '123', email: 'test@example.com', displayName: null })
+    mockUrlChatId(null)
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
     render(<ChatPage />)
     await waitFor(() => {
       expect(screen.getByText('test@example.com')).toBeInTheDocument()
     })
   })
 
-  it('allows the user to type and send a message', async () => {
+  it('allows the user to type and send a message (creates new chat first)', async () => {
     mockAuthenticatedUser()
-    mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          reply: "Hello! I'm your AI assistant. How can I help today?",
-        }),
-      })
+    mockUrlChatId(null)
+
+    // First, no chats exist
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ chats: [] }),
+    })
+
+    // When user sends message, it will create a new chat
+    const newChatId = 'new-chat-id'
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ chat: { id: newChatId, title: 'New Chat', userId: '123', createdAt: {}, updatedAt: {} } }),
+    })
+
+    // Then send message to that chat
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ reply: "Hello! I'm your AI assistant. How can I help today?" }),
+    })
+
+    // After first message, it will refresh chats to get title
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ chats: [{ id: newChatId, title: 'AI Chat Title', userId: '123', createdAt: {}, updatedAt: {} }] }),
+    })
 
     render(<ChatPage />)
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        "/api/chat?sessionId=test-session-id",
+        "/api/chats",
         expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer fake-token' }) })
       )
     })
@@ -161,19 +193,17 @@ describe('ChatPage', () => {
 
   it('sends message on Enter key', async () => {
     mockAuthenticatedUser()
-    mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          reply: "Hello! I'm your AI assistant. How can I help today?",
-        }),
-      })
+    mockUrlChatId(null)
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
+    const newChatId = 'new-chat-id'
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chat: { id: newChatId, title: 'New Chat', userId: '123', createdAt: {}, updatedAt: {} } }) })
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ reply: "Hello!" }) })
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [{ id: newChatId, title: 'Hello', userId: '123', createdAt: {}, updatedAt: {} }] }) })
 
     render(<ChatPage />)
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalled()
+      expect(mockFetch).toHaveBeenCalledWith("/api/chats", expect.any(Object))
     })
 
     const input = screen.getByPlaceholderText('Type your message...')
@@ -184,9 +214,7 @@ describe('ChatPage', () => {
     })
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Hello! I'm your AI assistant. How can I help today?")
-      ).toBeInTheDocument()
+      expect(screen.getByText("Hello!")).toBeInTheDocument()
     })
   })
 
@@ -201,14 +229,12 @@ describe('ChatPage', () => {
 
   it('displays AI response after fetch resolves', async () => {
     mockAuthenticatedUser()
-    mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          reply: "Hello! I'm your AI assistant. How can I help today?",
-        }),
-      })
+    mockUrlChatId(null)
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
+    const newChatId = 'new-chat-id'
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chat: { id: newChatId, title: 'New Chat', userId: '123', createdAt: {}, updatedAt: {} } }) })
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ reply: "Hello! I'm your AI assistant." }) })
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [{ id: newChatId, title: 'AI', userId: '123', createdAt: {}, updatedAt: {} }] }) })
 
     render(<ChatPage />)
 
@@ -224,41 +250,42 @@ describe('ChatPage', () => {
     })
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Hello! I'm your AI assistant. How can I help today?")
-      ).toBeInTheDocument()
+      expect(screen.getByText("Hello! I'm your AI assistant.")).toBeInTheDocument()
     })
   })
 
   it('disables send button while loading', async () => {
     mockAuthenticatedUser()
-    mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          reply: "Hello! I'm your AI assistant. How can I help today?",
-        }),
-      })
+    mockUrlChatId(null)
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
+    const newChatId = 'new-chat-id'
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chat: { id: newChatId, title: 'New Chat', userId: '123', createdAt: {}, updatedAt: {} } }) })
+    
+    let resolveResponse: (value: { ok: boolean; json: () => Promise<{ reply: string }> }) => void = () => {} // Initialize with empty function
+    const slowPromise = new Promise((resolve) => {
+      resolveResponse = resolve
+    })
+    mockFetch.mockResolvedValueOnce(slowPromise)
 
     render(<ChatPage />)
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalled()
+      expect(mockFetch).toHaveBeenCalledWith("/api/chats", expect.any(Object))
     })
 
     const sendButton = screen.getByRole('button', { name: /send/i })
     const input = screen.getByPlaceholderText('Type your message...')
-
     fireEvent.change(input, { target: { value: 'Test' } })
 
     await act(async () => {
       fireEvent.click(sendButton)
     })
 
-    await waitFor(() => {
-      expect(sendButton).toBeDisabled()
-    })
+    // Button should be disabled while loading
+    expect(sendButton).toBeDisabled()
+
+    // Resolve the slow promise to clean up
+    resolveResponse({ ok: true, json: async () => ({ reply: "Hello" }) })
   })
 
   it('disables send button when input is empty or whitespace', async () => {
@@ -276,14 +303,12 @@ describe('ChatPage', () => {
 
   it('scrolls to bottom when messages update', async () => {
     mockAuthenticatedUser()
-    mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          reply: "Hello! I'm your AI assistant. How can I help today?",
-        }),
-      })
+    mockUrlChatId(null)
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
+    const newChatId = 'new-chat-id'
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chat: { id: newChatId, title: 'New Chat', userId: '123', createdAt: {}, updatedAt: {} } }) })
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ reply: "Hello!" }) })
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [{ id: newChatId, title: 'Hello', userId: '123', createdAt: {}, updatedAt: {} }] }) })
 
     render(<ChatPage />)
 
@@ -300,21 +325,23 @@ describe('ChatPage', () => {
       fireEvent.click(screen.getByRole('button', { name: /send/i }))
     })
 
+    // Wait for the message to appear and the scroll to be called
     await waitFor(() => {
-      expect(mockScrollIntoView).toHaveBeenCalled()
+      expect(screen.getByText("Hello!")).toBeInTheDocument()
     })
+    // Additional small delay to ensure scroll effect runs
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(mockScrollIntoView).toHaveBeenCalled()
   })
 
   it('renders messages with correct styling based on role', async () => {
     mockAuthenticatedUser()
-    mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          reply: "Hello! I'm your AI assistant. How can I help today?",
-        }),
-      })
+    mockUrlChatId(null)
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
+    const newChatId = 'new-chat-id'
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chat: { id: newChatId, title: 'New Chat', userId: '123', createdAt: {}, updatedAt: {} } }) })
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ reply: "Hello! I'm your AI assistant." }) })
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [{ id: newChatId, title: 'AI', userId: '123', createdAt: {}, updatedAt: {} }] }) })
 
     render(<ChatPage />)
 
@@ -330,17 +357,17 @@ describe('ChatPage', () => {
     })
 
     await waitFor(() => {
-      const aiMsg = screen.getByText(
-        "Hello! I'm your AI assistant. How can I help today?"
-      )
+      const aiMsg = screen.getByText("Hello! I'm your AI assistant.")
       expect(aiMsg).toHaveClass('bg-white')
     })
   })
 
   it('redirects to login if not authenticated', async () => {
     const routerPush = jest.fn()
-    ;(useRouter as jest.Mock).mockReturnValue({ push: routerPush })
+    const routerReplace = jest.fn()
+    ;(useRouter as jest.Mock).mockReturnValue({ push: routerPush, replace: routerReplace })
     mockUnauthenticatedUser()
+    mockUrlChatId(null)
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) })
 
     render(<ChatPage />)
@@ -348,6 +375,6 @@ describe('ChatPage', () => {
     await waitFor(() => {
       expect(routerPush).toHaveBeenCalledWith('/auth/login')
     })
-    expect(mockFetch).not.toHaveBeenCalledWith(expect.stringContaining('/api/chat'))
+    expect(mockFetch).not.toHaveBeenCalledWith(expect.stringContaining('/api/chats'))
   })
 })
