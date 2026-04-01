@@ -267,6 +267,58 @@ function ChatPageContent() {
 
   const toggleSidebar = useCallback(() => setSidebarOpen((prev) => !prev), []);
 
+  const handleRenameChat = useCallback(
+    async (chatId: string, newTitle: string) => {
+      if (!user) return;
+
+      // Store original title for rollback
+      const originalChat = chats.find((c) => c.id === chatId);
+      const originalTitle = originalChat?.title;
+
+      // Optimistic update
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === chatId ? { ...chat, title: newTitle } : chat,
+        ),
+      );
+
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        const res = await fetch(`/api/chats/${chatId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ title: newTitle }),
+        });
+
+        if (!res.ok) {
+          // Rollback on error
+          setChats((prev) =>
+            prev.map((chat) =>
+              chat.id === chatId
+                ? { ...chat, title: originalTitle || "New Chat" }
+                : chat,
+            ),
+          );
+          console.error("Failed to rename chat");
+        }
+      } catch (err) {
+        console.error(err);
+        // Rollback
+        setChats((prev) =>
+          prev.map((chat) =>
+            chat.id === chatId
+              ? { ...chat, title: originalTitle || "New Chat" }
+              : chat,
+          ),
+        );
+      }
+    },
+    [user, chats],
+  );
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -289,6 +341,7 @@ function ChatPageContent() {
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}
         onDeleteChat={handleDeleteChat}
+        onRenameChat={handleRenameChat}
         disabled={creatingChat || loading}
       />
 

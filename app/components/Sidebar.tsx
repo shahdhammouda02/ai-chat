@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Chat } from "@/app/modules/chat/chat.types";
 
 interface SidebarProps {
@@ -10,6 +11,7 @@ interface SidebarProps {
   onSelectChat: (chatId: string) => void;
   onNewChat: () => void;
   onDeleteChat: (chatId: string) => Promise<void>;
+  onRenameChat: (chatId: string, newTitle: string) => Promise<void>;
   disabled?: boolean;
 }
 
@@ -21,9 +23,12 @@ export default function Sidebar({
   onSelectChat,
   onNewChat,
   onDeleteChat,
+  onRenameChat,
   disabled = false,
 }: SidebarProps) {
   const safeChats = chats ?? [];
+  const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
 
   const handleDelete = async (e: React.MouseEvent, chatId: string) => {
     e.stopPropagation();
@@ -32,9 +37,39 @@ export default function Sidebar({
     }
   };
 
+  const handleEditStart = (e: React.MouseEvent, chat: Chat) => {
+    e.stopPropagation();
+    setEditingChatId(chat.id);
+    setEditTitle(chat.title);
+  };
+
+  const handleSave = async (chatId: string, originalTitle: string) => {
+    const trimmed = editTitle.trim();
+    if (trimmed === "") {
+      // If empty, revert to original title
+      setEditingChatId(null);
+      return;
+    }
+    if (trimmed !== originalTitle) {
+      await onRenameChat(chatId, trimmed);
+    }
+    setEditingChatId(null);
+  };
+
+  const handleCancel = () => {
+    setEditingChatId(null);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, chatId: string, originalTitle: string) => {
+    if (e.key === "Enter") {
+      handleSave(chatId, originalTitle);
+    } else if (e.key === "Escape") {
+      handleCancel();
+    }
+  };
+
   return (
     <>
-      {/* Overlay for mobile – semi‑transparent black */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-20 md:hidden"
@@ -74,17 +109,53 @@ export default function Sidebar({
                 key={chat.id}
                 className="flex items-center justify-between group relative"
               >
-                <button
-                  onClick={() => onSelectChat(chat.id)}
-                  className={`flex-1 text-left px-3 py-2 rounded-md truncate ${
-                    currentChatId === chat.id
-                      ? "bg-indigo-700"
-                      : "hover:bg-gray-700"
-                  }`}
-                >
-                  {chat.title}
-                </button>
-                <div className="w-8 flex justify-end">
+                {editingChatId === chat.id ? (
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    onBlur={() => handleSave(chat.id, chat.title)}
+                    onKeyDown={(e) => handleKeyDown(e, chat.id, chat.title)}
+                    className="flex-1 px-3 py-2 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <button
+                    onClick={() => onSelectChat(chat.id)}
+                    className={`flex-1 text-left px-3 py-2 rounded-md truncate ${
+                      currentChatId === chat.id
+                        ? "bg-indigo-700"
+                        : "hover:bg-gray-700"
+                    }`}
+                  >
+                    {chat.title}
+                  </button>
+                )}
+
+                <div className="flex gap-1 items-center ml-1">
+                  {editingChatId !== chat.id && (
+                    <button
+                      onClick={(e) => handleEditStart(e, chat)}
+                      className="p-1 rounded-md hover:bg-gray-600 transition opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      aria-label="Edit chat title"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                        />
+                      </svg>
+                    </button>
+                  )}
                   <button
                     onClick={(e) => handleDelete(e, chat.id)}
                     className="p-1 rounded-md hover:bg-red-600 transition opacity-0 group-hover:opacity-100 focus:opacity-100"
@@ -112,7 +183,6 @@ export default function Sidebar({
         </div>
       </aside>
 
-      {/* Toggle button – only visible on mobile */}
       <button
         onClick={onToggle}
         className="fixed top-4 left-4 z-40 p-2 bg-indigo-600 text-white rounded-md shadow-md md:hidden"

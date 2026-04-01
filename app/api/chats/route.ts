@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { verifyFirebaseToken } from "@/app/lib/verify-token";
 import { ChatService } from "@/app/modules/chat/chat.service";
+import { ChatRepository } from "@/app/modules/chat/chat.repository";
 
 const chatService = new ChatService();
+const chatRepository = new ChatRepository();
 
 export async function GET(req: Request) {
   try {
@@ -12,7 +14,8 @@ export async function GET(req: Request) {
     const decoded = await verifyFirebaseToken(token);
     const userId = decoded.uid;
 
-    const chats = await chatService.getUserChats(userId);
+    // Use the repository directly to fetch all chats for the user
+    const chats = await chatRepository.getUserChats(userId);
     return NextResponse.json({ chats });
   } catch (error) {
     console.error(error);
@@ -28,9 +31,16 @@ export async function POST(req: Request) {
     const decoded = await verifyFirebaseToken(token);
     const userId = decoded.uid;
 
+    // Create a new chat via the service (this only returns the chat ID)
     const chatId = await chatService.createNewChat(userId);
-    const chats = await chatService.getUserChats(userId);
-    const chat = chats.find(c => c.id === chatId);
+
+    // Return a minimal chat object (the client only needs id and title)
+    const chat = {
+      id: chatId,
+      title: "New Chat",
+      userId,
+    };
+
     return NextResponse.json({ chat });
   } catch (error) {
     console.error(error);
