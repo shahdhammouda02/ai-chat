@@ -13,6 +13,12 @@ type Message = {
   content: string;
 };
 
+async function fetchJSON(url: string, options?: RequestInit) {
+  const res = await fetch(url, options);
+  const data = await res.json();
+  return { res, data };
+}
+
 function ChatPageContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -54,13 +60,9 @@ function ChatPageContent() {
     const fetchChats = async () => {
       try {
         const token = await auth.currentUser?.getIdToken();
-        const res = await fetch("/api/chats", {
+        const { res, data } = await fetchJSON("/api/chats", {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        if (!res || typeof res.json !== "function") return;
-
-        const data = await res.json();
 
         if (res.ok && Array.isArray(data.chats)) {
           const chatsArray = data.chats as Chat[];
@@ -89,13 +91,12 @@ function ChatPageContent() {
     const fetchMessages = async () => {
       try {
         const token = await auth.currentUser?.getIdToken();
-        const res = await fetch(`/api/chat/${currentChatId}/messages`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res || typeof res.json !== "function") return;
-
-        const data = await res.json();
+        const { res, data } = await fetchJSON(
+          `/api/chat/${currentChatId}/messages`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
 
         if (res.ok) {
           setMessages(data.messages);
@@ -121,14 +122,10 @@ function ChatPageContent() {
 
     try {
       const token = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/chats", {
+      const { res, data } = await fetchJSON("/api/chats", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      if (!res || typeof res.json !== "function") return null;
-
-      const data = await res.json();
 
       if (res.ok && data.chat) {
         const newChat = data.chat as Chat;
@@ -173,7 +170,7 @@ function ChatPageContent() {
 
     try {
       const token = await auth.currentUser?.getIdToken();
-      const res = await fetch(`/api/chat/${chatId}`, {
+      const { res, data } = await fetchJSON(`/api/chat/${chatId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -181,10 +178,6 @@ function ChatPageContent() {
         },
         body: JSON.stringify({ content: input }),
       });
-
-      if (!res || typeof res.json !== "function") return;
-
-      const data = await res.json();
 
       if (!res.ok) throw new Error(data.error || "Something went wrong");
 
@@ -194,18 +187,17 @@ function ChatPageContent() {
       };
 
       setTimeout(() => {
-  setMessages((prev) => [...prev, assistantMessage]);
-}, 0);
+        setMessages((prev) => [...prev, assistantMessage]);
+      }, 0);
 
       if (messages.length === 0) {
         const freshToken = await auth.currentUser?.getIdToken();
-        const chatsRes = await fetch("/api/chats", {
-          headers: { Authorization: `Bearer ${freshToken}` },
-        });
-
-        if (!chatsRes || typeof chatsRes.json !== "function") return;
-
-        const chatsData = await chatsRes.json();
+        const { res: chatsRes, data: chatsData } = await fetchJSON(
+          "/api/chats",
+          {
+            headers: { Authorization: `Bearer ${freshToken}` },
+          },
+        );
 
         if (chatsRes.ok && Array.isArray(chatsData.chats)) {
           const uniqueChats = Array.from(
@@ -249,23 +241,17 @@ function ChatPageContent() {
 
       try {
         const token = await auth.currentUser?.getIdToken();
-        const res = await fetch(`/api/chats/${chatId}`, {
+        const { res } = await fetchJSON(`/api/chats/${chatId}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (!res) return;
-
         if (!res.ok) throw new Error();
       } catch (err) {
         const freshToken = await auth.currentUser?.getIdToken();
-        const res2 = await fetch("/api/chats", {
+        const { res: res2, data: data2 } = await fetchJSON("/api/chats", {
           headers: { Authorization: `Bearer ${freshToken}` },
         });
-
-        if (!res2 || typeof res2.json !== "function") return;
-
-        const data2 = await res2.json();
 
         if (res2.ok && Array.isArray(data2.chats))
           setChats(data2.chats as Chat[]);
