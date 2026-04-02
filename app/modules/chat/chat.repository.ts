@@ -28,6 +28,19 @@ export class ChatRepository {
     })) as Chat[];
   }
 
+  // New method: fetch a single chat by ID
+  async getChat(chatId: string, userId: string): Promise<Chat | null> {
+    const doc = await db
+      .collection("users")
+      .doc(userId)
+      .collection("chats")
+      .doc(chatId)
+      .get();
+
+    if (!doc.exists) return null;
+    return { id: doc.id, ...doc.data() } as Chat;
+  }
+
   async updateChatTitle(chatId: string, userId: string, title: string): Promise<void> {
     await db
       .collection("users")

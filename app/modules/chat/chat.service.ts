@@ -9,22 +9,27 @@ export class ChatService {
   }
 
   async createNewChat(userId: string): Promise<string> {
-    const title = "New Chat";
-    const chatId = await this.chatRepository.createChat(userId, title);
+    const chatId = await this.chatRepository.createChat(userId, "New Chat");
     return chatId;
   }
 
-  async getUserChats(userId: string) {
-    return await this.chatRepository.getUserChats(userId);
-  }
+  async renameChat(userId: string, chatId: string, title: string): Promise<void> {
+  await this.chatRepository.updateChatTitle(chatId, userId, title);
+}
 
   async sendUserMessage(userId: string, chatId: string, content: string) {
-    await this.chatRepository.addMessage(chatId, userId, content, "user");
+  await this.chatRepository.addMessage(chatId, userId, content, "user");
 
-    const messages = await this.chatRepository.getMessages(chatId, userId);
-    const isFirstMessage = messages.length === 1;
+  const messages = await this.chatRepository.getMessages(chatId, userId);
+  const isFirstMessage = messages.length === 1;
 
-    const formattedPrompt = `
+  if (isFirstMessage) {
+    const titlePrompt = `Generate a short title (max 5 words) for this conversation based on this message: "${content}". Reply with only the title, no quotes.`;
+    const title = await generateAIResponse(titlePrompt);
+    await this.chatRepository.updateChatTitle(chatId, userId, title);
+  }
+
+  const formattedPrompt = `
 You are a professional, helpful AI assistant.
 Be concise, clear, and accurate.
 
@@ -33,23 +38,11 @@ ${messages
   .join("\n")}
 `;
 
-    const aiReply = await generateAIResponse(formattedPrompt);
+  const aiReply = await generateAIResponse(formattedPrompt);
+  await this.chatRepository.addMessage(chatId, userId, aiReply, "assistant");
 
-    await this.chatRepository.addMessage(chatId, userId, aiReply, "assistant");
-
-    if (isFirstMessage) {
-      const chat = (await this.chatRepository.getUserChats(userId)).find(
-        (c) => c.id === chatId,
-      );
-      if (chat && chat.title === "New Chat") {
-        const titlePrompt = `Generate a short title (max 5 words) for this conversation: ${content}`;
-        const title = await generateAIResponse(titlePrompt);
-        await this.chatRepository.updateChatTitle(chatId, userId, title);
-      }
-    }
-
-    return aiReply;
-  }
+  return aiReply;
+}
 
   async getChatHistory(userId: string, chatId: string) {
     return await this.chatRepository.getMessages(chatId, userId);
