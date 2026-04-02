@@ -2,6 +2,14 @@
 
 import { useState } from "react";
 import { Chat } from "@/app/modules/chat/chat.types";
+import {
+  Plus,
+  MessageSquare,
+  Pencil,
+  Trash2,
+  LogOut,
+  SidebarIcon,
+} from "lucide-react";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -12,6 +20,8 @@ interface SidebarProps {
   onNewChat: () => void;
   onDeleteChat: (chatId: string) => Promise<void>;
   onRenameChat: (chatId: string, newTitle: string) => Promise<void>;
+  userName: string;
+  onSignOut: () => void;
   disabled?: boolean;
 }
 
@@ -24,6 +34,8 @@ export default function Sidebar({
   onNewChat,
   onDeleteChat,
   onRenameChat,
+  userName,
+  onSignOut,
   disabled = false,
 }: SidebarProps) {
   const safeChats = chats ?? [];
@@ -46,7 +58,6 @@ export default function Sidebar({
   const handleSave = async (chatId: string, originalTitle: string) => {
     const trimmed = editTitle.trim();
     if (trimmed === "") {
-      // If empty, revert to original title
       setEditingChatId(null);
       return;
     }
@@ -60,7 +71,11 @@ export default function Sidebar({
     setEditingChatId(null);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent, chatId: string, originalTitle: string) => {
+  const handleKeyDown = (
+    e: React.KeyboardEvent,
+    chatId: string,
+    originalTitle: string,
+  ) => {
     if (e.key === "Enter") {
       handleSave(chatId, originalTitle);
     } else if (e.key === "Escape") {
@@ -68,8 +83,18 @@ export default function Sidebar({
     }
   };
 
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/);
+    const first = parts[0]?.[0] || "";
+    const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
+    return (first + last).toUpperCase();
+  };
+
+  const userInitials = getInitials(userName);
+
   return (
     <>
+      {/* Mobile overlay */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-20 md:hidden"
@@ -78,29 +103,34 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed top-0 left-0 h-full bg-gray-800 text-white w-64 transform transition-transform duration-300 ease-in-out z-30 ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0`}
+        className={`fixed top-0 left-0 h-full bg-gray-800 text-white transition-all duration-300 ease-in-out z-30 ${
+          isOpen ? "w-64" : "w-16"
+        }`}
       >
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <h2 className="text-xl font-bold">AI Chat</h2>
+        {/* Header with toggle button on the left */}
+        <div
+          className={`flex items-center p-4 border-b border-gray-700 ${isOpen ? "flex-row-reverse justify-between" : ""}`}
+        >
           <button
             onClick={onToggle}
-            className="p-1 rounded-md hover:bg-gray-700 md:hidden"
+            className="p-1 rounded-md hover:bg-gray-700 transition"
+            aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
           >
-            ✕
+            <SidebarIcon className="h-5 w-5" />
           </button>
+
+          {isOpen && <h2 className="text-xl font-bold">AI Chat</h2>}
         </div>
 
         <div className="p-4">
           <button
             onClick={onNewChat}
             disabled={disabled}
-            className={`w-full bg-indigo-600 text-white py-2 rounded-md transition ${
+            className={`w-full flex items-center justify-center bg-indigo-600 text-white py-2 rounded-md transition ${
               disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-indigo-700"
             }`}
           >
-            + New Chat
+            {isOpen ? "+ New Chat" : <Plus className="h-5 w-5" />}
           </button>
 
           <div className="space-y-2 mt-4">
@@ -116,79 +146,88 @@ export default function Sidebar({
                     onChange={(e) => setEditTitle(e.target.value)}
                     onBlur={() => handleSave(chat.id, chat.title)}
                     onKeyDown={(e) => handleKeyDown(e, chat.id, chat.title)}
-                    className="flex-1 px-3 py-2 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    className={`${
+                      isOpen ? "flex-1" : "w-full"
+                    } px-3 py-2 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-indigo-400`}
                     autoFocus
                     onClick={(e) => e.stopPropagation()}
                   />
                 ) : (
                   <button
                     onClick={() => onSelectChat(chat.id)}
-                    className={`flex-1 text-left px-3 py-2 rounded-md truncate ${
+                    className={`${
+                      isOpen ? "flex-1 text-left" : "flex justify-center w-full"
+                    } px-3 py-2 rounded-md ${
                       currentChatId === chat.id
                         ? "bg-indigo-700"
                         : "hover:bg-gray-700"
                     }`}
                   >
-                    {chat.title}
+                    {isOpen ? (
+                      <span className="truncate">{chat.title}</span>
+                    ) : (
+                      <MessageSquare className="h-5 w-5" />
+                    )}
                   </button>
                 )}
 
-                <div className="flex gap-1 items-center ml-1">
-                  {editingChatId !== chat.id && (
+                {/* Show edit/delete only when sidebar is open */}
+                {isOpen && editingChatId !== chat.id && (
+                  <div className="flex gap-1 items-center ml-1">
                     <button
                       onClick={(e) => handleEditStart(e, chat)}
-                      className="p-1 rounded-md hover:bg-gray-600 transition opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      className="p-1 rounded-md hover:bg-gray-600 transition"
                       aria-label="Edit chat title"
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                        />
-                      </svg>
+                      <Pencil className="h-4 w-4" />
                     </button>
-                  )}
-                  <button
-                    onClick={(e) => handleDelete(e, chat.id)}
-                    className="p-1 rounded-md hover:bg-red-600 transition opacity-0 group-hover:opacity-100 focus:opacity-100"
-                    aria-label="Delete chat"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+                    <button
+                      onClick={(e) => handleDelete(e, chat.id)}
+                      className="p-1 rounded-md hover:bg-red-600 transition"
+                      aria-label="Delete chat"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  </button>
-                </div>
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
-      </aside>
 
-      <button
-        onClick={onToggle}
-        className="fixed top-4 left-4 z-40 p-2 bg-indigo-600 text-white rounded-md shadow-md md:hidden"
-      >
-        ☰
-      </button>
+        {/* Bottom section with user info and logout */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-700">
+          <div className="flex items-center justify-between">
+            {isOpen ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-sm font-medium">
+                    {userInitials}
+                  </div>
+                  <span className="text-sm truncate">{userName}</span>
+                </div>
+                <button
+                  onClick={onSignOut}
+                  className="p-1 rounded-md hover:bg-gray-700 transition"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="h-5 w-5" />
+                </button>
+              </>
+            ) : (
+              <div className="flex justify-center w-full">
+                <button
+                  onClick={onSignOut}
+                  className="p-1 rounded-md hover:bg-gray-700 transition"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="h-5 w-5" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </aside>
     </>
   );
 }

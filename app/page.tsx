@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/hooks/useAuth";
 import { auth } from "@/app/lib/firebase-client";
 import { signOut } from "firebase/auth";
+import { LogOut } from "lucide-react";
 import Sidebar from "@/app/components/Sidebar";
 import { Chat } from "@/app/modules/chat/chat.types";
 
@@ -25,7 +26,7 @@ function ChatPageContent() {
   const searchParams = useSearchParams();
   const urlChatId = searchParams.get("chat");
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -33,6 +34,9 @@ function ChatPageContent() {
   const [loading, setLoading] = useState(false);
   const [creatingChat, setCreatingChat] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const currentChat = chats.find((c) => c.id === currentChatId);
+  const currentChatTitle = currentChat?.title || "AI Chat";
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -138,7 +142,6 @@ function ChatPageContent() {
 
         setCurrentChatId(newChat.id);
         setMessages([]);
-        setSidebarOpen(false);
 
         return newChat.id;
       } else {
@@ -186,9 +189,7 @@ function ChatPageContent() {
         content: data.reply,
       };
 
-      setTimeout(() => {
-        setMessages((prev) => [...prev, assistantMessage]);
-      }, 0);
+      setMessages((prev) => [...prev, assistantMessage]);
 
       if (messages.length === 0) {
         const freshToken = await auth.currentUser?.getIdToken();
@@ -212,9 +213,7 @@ function ChatPageContent() {
     } catch (err) {
       console.error(err);
     } finally {
-      setTimeout(() => {
-        setLoading(false);
-      }, 0);
+      setLoading(false);
     }
   }, [input, user, currentChatId, messages.length, handleNewChat]);
 
@@ -262,7 +261,8 @@ function ChatPageContent() {
 
   const handleSelectChat = useCallback((chatId: string) => {
     setCurrentChatId(chatId);
-    setSidebarOpen(false);
+    // Do NOT close sidebar when selecting a chat
+    // setSidebarOpen(false);
   }, []);
 
   const toggleSidebar = useCallback(() => setSidebarOpen((prev) => !prev), []);
@@ -271,11 +271,9 @@ function ChatPageContent() {
     async (chatId: string, newTitle: string) => {
       if (!user) return;
 
-      // Store original title for rollback
       const originalChat = chats.find((c) => c.id === chatId);
       const originalTitle = originalChat?.title;
 
-      // Optimistic update
       setChats((prev) =>
         prev.map((chat) =>
           chat.id === chatId ? { ...chat, title: newTitle } : chat,
@@ -294,7 +292,6 @@ function ChatPageContent() {
         });
 
         if (!res.ok) {
-          // Rollback on error
           setChats((prev) =>
             prev.map((chat) =>
               chat.id === chatId
@@ -306,7 +303,6 @@ function ChatPageContent() {
         }
       } catch (err) {
         console.error(err);
-        // Rollback
         setChats((prev) =>
           prev.map((chat) =>
             chat.id === chatId
@@ -342,45 +338,44 @@ function ChatPageContent() {
         onNewChat={handleNewChat}
         onDeleteChat={handleDeleteChat}
         onRenameChat={handleRenameChat}
+        userName={userName}
+        onSignOut={handleSignOut}
         disabled={creatingChat || loading}
       />
 
-      <div className="flex-1 flex flex-col ml-0 md:ml-64">
-        <div className="bg-indigo-500 text-white py-4 px-6 flex justify-between items-center shadow-md">
-          <div className="flex items-center gap-3">
-            <span className="font-semibold text-lg">AI Chat</span>
-            <span className="text-sm bg-indigo-400 px-3 py-1 rounded-full">
-              {userName}
+      <div
+        className={`flex-1 flex flex-col transition-all duration-300 ${
+          sidebarOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-16"
+        } pl-14 md:pl-0`} 
+      >
+        {/* Header */}
+        <div className="bg-indigo-500 text-white py-4 px-4 flex justify-between items-center shadow-md sticky top-0 z-20 h-16">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-10 md:hidden shrink-0" />
+            <span className="font-semibold text-base md:text-lg truncate ml-3">
+              {currentChatTitle}
             </span>
           </div>
           <button
             onClick={handleSignOut}
-            className="text-sm bg-white text-indigo-500 px-4 py-1 rounded-md hover:bg-indigo-50 transition"
+            className="bg-white text-indigo-500 p-2 md:px-4 md:py-1 rounded-md hover:bg-indigo-50 transition flex items-center justify-center shrink-0"
           >
-            Sign Out
+            <span className="hidden md:inline text-sm font-medium">Sign Out</span>
+            <LogOut className="h-5 w-5 md:hidden" />
           </button>
         </div>
 
+        {/* Chat Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`flex ${
-                msg.role === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
-              <div
-                className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm shadow-sm ${
-                  msg.role === "user"
-                    ? "bg-indigo-100 text-indigo-900 rounded-br-sm"
-                    : "bg-white text-gray-800 border rounded-bl-sm"
-                }`}
-              >
+            <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[85%] md:max-w-[70%] px-4 py-3 rounded-2xl text-sm shadow-sm ${
+                  msg.role === "user" ? "bg-indigo-100 text-indigo-900 rounded-br-sm" : "bg-white text-gray-800 border rounded-bl-sm"
+              }`}>
                 {msg.content}
               </div>
             </div>
           ))}
-
           {loading && (
             <div className="flex justify-start">
               <div className="bg-white border px-4 py-3 rounded-2xl shadow-sm text-sm animate-pulse text-gray-500">
@@ -388,10 +383,10 @@ function ChatPageContent() {
               </div>
             </div>
           )}
-
           <div ref={bottomRef} />
         </div>
 
+        {/* Input Area */}
         <div className="border-t bg-white p-4 flex gap-3">
           <input
             type="text"
@@ -405,7 +400,7 @@ function ChatPageContent() {
           <button
             onClick={handleSend}
             disabled={loading || !input.trim()}
-            className="bg-indigo-500 text-white px-6 py-3 rounded-xl text-sm font-medium hover:bg-indigo-600 transition disabled:opacity-50"
+            className="bg-indigo-500 text-white px-6 py-3 rounded-xl text-sm font-medium hover:bg-indigo-600 transition"
           >
             Send
           </button>

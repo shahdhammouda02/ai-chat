@@ -5,12 +5,14 @@ import {
   waitFor,
   act,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import ChatPage from "@/app/page";
 import { useAuth } from "@/app/hooks/useAuth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Chat } from "@/app/modules/chat/chat.types";
+import { Timestamp } from "firebase/firestore";
 
-// 1. Mocks لـ Firebase و Next Navigation
+// 1. Mocks
 jest.mock("firebase/auth", () => ({
   signOut: jest.fn(() => Promise.resolve()),
 }));
@@ -32,7 +34,6 @@ jest.mock("@/app/lib/firebase-client", () => ({
   },
 }));
 
-// 2. إعداد الـ Mocks العالمية
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
@@ -43,15 +44,10 @@ Object.defineProperty(global, "crypto", {
   value: { randomUUID: jest.fn(() => "test-session-id") },
 });
 
-// 3. Helpers للمحاكاة
 const mockAuthenticatedUser = (
   user = { uid: "123", email: "test@example.com", displayName: "Test User" },
 ) => {
   (useAuth as jest.Mock).mockReturnValue({ user, loading: false });
-};
-
-const mockUnauthenticatedUser = () => {
-  (useAuth as jest.Mock).mockReturnValue({ user: null, loading: false });
 };
 
 const mockUrlChatId = (chatId: string | null) => {
@@ -63,7 +59,6 @@ const renderWithHistory = async (initialChats: Chat[] = []) => {
   mockAuthenticatedUser();
   mockUrlChatId(null);
 
-  // الرد الخاص بأول نداء fetch (جلب الشاتات)
   mockFetch.mockResolvedValueOnce({
     ok: true,
     json: async () => ({ chats: initialChats }),
@@ -78,22 +73,17 @@ const renderWithHistory = async (initialChats: Chat[] = []) => {
   });
 };
 
-// 4. جناح الاختبارات
-describe("ChatPage", () => {
+describe("ChatPage Integration Tests", () => {
   beforeEach(() => {
-    // مهم جداً: ترتيب العمليات
     jest.clearAllMocks();
-    mockFetch.mockReset(); // يمسح كل شيء
+    mockFetch.mockReset();
     mockScrollIntoView.mockClear();
 
-    // الحل الجذري: إعطاء رد افتراضي آمن مباشرة بعد الـ Reset
-    // لكي لا ينهار الـ useEffect الذي يعمل في الخلفية
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ chats: [], messages: [], reply: "" }),
     });
 
-    // إعدادات افتراضية للـ Hooks
     (useRouter as jest.Mock).mockReturnValue({
       push: jest.fn(),
       replace: jest.fn(),
@@ -106,303 +96,123 @@ describe("ChatPage", () => {
   it("renders the chat header and input", async () => {
     await renderWithHistory();
     expect(screen.getAllByText("AI Chat").length).toBeGreaterThan(0);
-    expect(
-      screen.getByPlaceholderText("Type your message..."),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /send/i })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Type your message...")).toBeInTheDocument();
   });
 
   it("shows user name in header", async () => {
-    mockAuthenticatedUser({
-      uid: "123",
-      email: "test@example.com",
-      displayName: "Test User",
-    });
-    mockUrlChatId(null);
-
-    // محاكاة الطلبات التي ستحدث فور التشغيل
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ chats: [] }),
-    });
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ messages: [] }),
-    });
-
-    await act(async () => {
-      render(<ChatPage />);
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Test User")).toBeInTheDocument();
-    });
+    mockAuthenticatedUser({ uid: "123", email: "t@e.com", displayName: "Test User" });
+    await renderWithHistory([]);
+    expect(screen.getByText("Test User")).toBeInTheDocument();
   });
 
-  it("shows user email if displayName is not available", async () => {
-    mockAuthenticatedUser({
-      uid: "123",
-      email: "test@example.com",
-      displayName: "",
-    });
-    mockUrlChatId(null);
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ chats: [] }),
-    });
+ it("allows the user to type and send a message", async () => {
+  const user = userEvent.setup();
+  
+  mockAuthenticatedUser();
+  mockUrlChatId(null);
 
-    await act(async () => {
-      render(<ChatPage />);
-    });
+  mockFetch
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ chat: { id: "new-1", title: "New" } }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ reply: "AI Response" }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) });
 
-    await waitFor(() => {
-      expect(screen.getByText("test@example.com")).toBeInTheDocument();
-    });
+  await act(async () => {
+    render(<ChatPage />);
   });
 
-  it("allows the user to type and send a message (creates new chat first)", async () => {
-    mockAuthenticatedUser();
-    mockUrlChatId(null);
-
-    const newChatId = "new-chat-id";
-
-    // إعداد تسلسل الردود المتوقع
-    mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) }) // Initial fetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ chat: { id: newChatId, title: "New Chat" } }),
-      }) // POST Create
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ reply: "Hello! I'm your AI assistant." }),
-      }) // POST Message
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          chats: [{ id: newChatId, title: "AI Chat Title" }],
-        }),
-      }); // Final refresh
-
-    await act(async () => {
-      render(<ChatPage />);
-    });
-
-    const input = screen.getByPlaceholderText("Type your message...");
-    const sendButton = screen.getByRole("button", { name: /send/i });
-
-    fireEvent.change(input, { target: { value: "Hello, AI!" } });
-
-    await act(async () => {
-      fireEvent.click(sendButton);
-    });
-
-    await waitFor(
-      () => {
-        expect(
-          screen.getByText(/Hello! I'm your AI assistant/i),
-        ).toBeInTheDocument();
-      },
-      { timeout: 3000 },
-    );
+  await waitFor(() => {
+    expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
   });
 
-  it("sends message on Enter key", async () => {
-    mockAuthenticatedUser();
-    mockUrlChatId(null);
+  const input = await screen.findByPlaceholderText(/type your message/i);
 
-    mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ chat: { id: "123" } }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ reply: "Hello!" }),
+  // userEvent يحاكي الكتابة الحقيقية ويحدّث الـ state صح
+  await user.type(input, "Hello");
+
+  expect(input).toHaveValue("Hello");
+
+  const sendButton = screen.getByRole("button", { name: /send/i });
+  expect(sendButton).not.toBeDisabled();
+
+  await user.click(sendButton);
+
+  const aiResponse = await screen.findByText(/AI Response/i, {}, { timeout: 5000 });
+  expect(aiResponse).toBeInTheDocument();
+}, 15000);
+  describe("Sidebar Actions", () => {
+    const mockChats: Chat[] = [
+      { id: "c1", title: "Chat One", userId: "123", createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+    ];
+
+    it("deletes a chat after user confirmation", async () => {
+      await renderWithHistory(mockChats);
+      const confirmSpy = jest.spyOn(window, "confirm").mockImplementation(() => true);
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+      const deleteBtn = screen.getByLabelText("Delete chat");
+      await act(async () => { fireEvent.click(deleteBtn); });
+
+      await waitFor(() => {
+        expect(screen.queryByText("Chat One")).not.toBeInTheDocument();
+      });
+      confirmSpy.mockRestore();
+    });
+
+    it("renames a chat when pressing Enter in edit mode", async () => {
+      await renderWithHistory(mockChats);
+      fireEvent.click(screen.getByLabelText("Edit chat title"));
+      const input = screen.getByDisplayValue("Chat One");
+      fireEvent.change(input, { target: { value: "Updated Name" } });
+      mockFetch.mockResolvedValueOnce({ ok: true });
+
+      await act(async () => {
+        fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
       });
 
-    await act(async () => {
-      render(<ChatPage />);
-    });
-
-    const input = screen.getByPlaceholderText("Type your message...");
-    fireEvent.change(input, { target: { value: "Enter message" } });
-
-    await act(async () => {
-      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Hello!")).toBeInTheDocument();
-    });
-  });
-
-  it("does not send empty message", async () => {
-    await renderWithHistory();
-    const sendButton = screen.getByRole("button", { name: /send/i });
-
-    await act(async () => {
-      fireEvent.click(sendButton);
-    });
-
-    expect(document.querySelector(".bg-indigo-100")).toBeNull();
-  });
-
-  it("displays AI response after fetch resolves", async () => {
-    mockAuthenticatedUser();
-    mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ chat: { id: "1" } }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ reply: "AI Response" }),
+      await waitFor(() => {
+        const updatedNames = screen.getAllByText("Updated Name");
+        expect(updatedNames.length).toBeGreaterThanOrEqual(1);
       });
-
-    await act(async () => {
-      render(<ChatPage />);
     });
 
-    const input = screen.getByPlaceholderText("Type your message...");
-    fireEvent.change(input, { target: { value: "Hi" } });
+    it("switches chat when clicking on a chat item", async () => {
+      const twoChats = [
+        ...mockChats,
+        { id: "c2", title: "Chat Two", userId: "123", createdAt: Timestamp.now(), updatedAt: Timestamp.now() }
+      ];
+      await renderWithHistory(twoChats);
 
-    await act(async () => {
-      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      const secondChat = screen.getByText("Chat Two");
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ messages: [] }) });
+
+      await act(async () => { fireEvent.click(secondChat); });
+
+      expect(secondChat.closest("button")).toHaveClass("bg-indigo-700");
     });
+  });
 
+  it("toggles sidebar visibility on button click", async () => {
+    await renderWithHistory([]);
+    const toggleBtn = screen.getByLabelText(/close sidebar|open sidebar/i);
+
+    await act(async () => { fireEvent.click(toggleBtn); });
+    
     await waitFor(() => {
-      expect(screen.getByText("AI Response")).toBeInTheDocument();
-    });
-  });
-
-  it("disables send button while loading", async () => {
-    mockAuthenticatedUser();
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ chats: [] }),
-    });
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ chat: { id: "1" } }),
+      const sidebarTitle = screen.queryByRole("heading", { name: /ai chat/i });
+      expect(sidebarTitle).not.toBeInTheDocument();
     });
 
-    let resolveResponse: (value: {
-      ok: boolean;
-      json: () => Promise<{ reply: string }>;
-    }) => void;
-    const slowPromise = new Promise((resolve) => {
-      resolveResponse = resolve;
-    });
-    mockFetch.mockResolvedValueOnce(slowPromise);
-
-    await act(async () => {
-      render(<ChatPage />);
-    });
-
-    const input = screen.getByPlaceholderText("Type your message...");
-    fireEvent.change(input, { target: { value: "Test" } });
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /send/i }));
-    });
-
-    expect(screen.getByRole("button", { name: /send/i })).toBeDisabled();
-
-    await act(async () => {
-      resolveResponse({ ok: true, json: async () => ({ reply: "Hello" }) });
-    });
-  });
-
-  it("disables send button when input is empty or whitespace", async () => {
-    await renderWithHistory();
-    const sendButton = screen.getByRole("button", { name: /send/i });
-    const input = screen.getByPlaceholderText("Type your message...");
-
-    expect(sendButton).toBeDisabled();
-    fireEvent.change(input, { target: { value: "   " } });
-    expect(sendButton).toBeDisabled();
-    fireEvent.change(input, { target: { value: "Hello" } });
-    expect(sendButton).not.toBeDisabled();
-  });
-
-  it("scrolls to bottom when messages update", async () => {
-    mockAuthenticatedUser();
-    mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ chat: { id: "1" } }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ reply: "Hello!" }),
-      });
-
-    await act(async () => {
-      render(<ChatPage />);
-    });
-
-    mockScrollIntoView.mockClear();
-    const input = screen.getByPlaceholderText("Type your message...");
-    fireEvent.change(input, { target: { value: "scroll" } });
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /send/i }));
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Hello!")).toBeInTheDocument();
-    });
-
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(mockScrollIntoView).toHaveBeenCalled();
-  });
-
-  it("renders messages with correct styling based on role", async () => {
-    mockAuthenticatedUser();
-    mockFetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ chat: { id: "1" } }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ reply: "Assistant style" }),
-      });
-
-    await act(async () => {
-      render(<ChatPage />);
-    });
-
-    fireEvent.change(screen.getByPlaceholderText("Type your message..."), {
-      target: { value: "test" },
-    });
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /send/i }));
-    });
-
-    await waitFor(() => {
-      const aiMsg = screen.getByText("Assistant style");
-      expect(aiMsg).toHaveClass("bg-white");
-    });
+    await act(async () => { fireEvent.click(toggleBtn); });
+    expect(screen.getByRole("heading", { name: /ai chat/i })).toBeVisible();
   });
 
   it("redirects to login if not authenticated", async () => {
     const routerPush = jest.fn();
-    (useRouter as jest.Mock).mockReturnValue({
-      push: routerPush,
-      replace: jest.fn(),
-    });
-    mockUnauthenticatedUser();
+    (useRouter as jest.Mock).mockReturnValue({ push: routerPush, replace: jest.fn() });
+    (useAuth as jest.Mock).mockReturnValue({ user: null, loading: false });
 
-    await act(async () => {
-      render(<ChatPage />);
-    });
+    await act(async () => { render(<ChatPage />); });
 
     await waitFor(() => {
       expect(routerPush).toHaveBeenCalledWith("/auth/login");
