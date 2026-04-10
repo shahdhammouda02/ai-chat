@@ -103,31 +103,35 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed top-0 left-0 h-full bg-gray-800 text-white transition-all duration-300 ease-in-out z-30 ${
+        className={`fixed top-0 left-0 h-full bg-[#0d0f14] border-r border-white/10 text-white transition-all duration-300 ease-in-out z-30 ${
           isOpen ? "w-64" : "w-16"
         }`}
       >
         {/* Header with toggle button on the left */}
         <div
-          className={`flex items-center p-4 border-b border-gray-700 ${isOpen ? "flex-row-reverse justify-between" : ""}`}
+          className={`flex items-center p-4 border-b border-white/10 ${isOpen ? "flex-row-reverse justify-between" : ""}`}
         >
           <button
             onClick={onToggle}
-            className="p-1 rounded-md hover:bg-gray-700 transition"
+            className="p-1 rounded-md hover:bg-white/10 transition"
             aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
           >
             <SidebarIcon className="h-5 w-5" />
           </button>
 
-          {isOpen && <h2 className="text-xl font-bold">AI Chat</h2>}
+          {isOpen && (
+            <h2 className="text-xl font-bold bg-linear-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+              AI Chat
+            </h2>
+          )}
         </div>
 
         <div className="p-4">
           <button
             onClick={onNewChat}
             disabled={disabled}
-            className={`w-full flex items-center justify-center bg-indigo-600 text-white py-2 rounded-md transition ${
-              disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-indigo-700"
+            className={`w-full flex items-center justify-center bg-linear-to-r from-indigo-500 to-purple-500 text-white py-2 rounded-md transition ${
+              disabled ? "opacity-50 cursor-not-allowed" : "hover:opacity-90"
             }`}
           >
             {isOpen ? "+ New Chat" : <Plus className="h-5 w-5" />}
@@ -148,7 +152,7 @@ export default function Sidebar({
                     onKeyDown={(e) => handleKeyDown(e, chat.id, chat.title)}
                     className={`${
                       isOpen ? "flex-1" : "w-full"
-                    } px-3 py-2 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-indigo-400`}
+                    } px-3 py-2 rounded-md bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500`}
                     autoFocus
                     onClick={(e) => e.stopPropagation()}
                   />
@@ -159,8 +163,8 @@ export default function Sidebar({
                       isOpen ? "flex-1 text-left" : "flex justify-center w-full"
                     } px-3 py-2 rounded-md ${
                       currentChatId === chat.id
-                        ? "bg-indigo-700"
-                        : "hover:bg-gray-700"
+                        ? "bg-linear-to-r from-indigo-500/30 to-purple-500/30 text-white"
+                        : "hover:bg-white/5"
                     }`}
                   >
                     {isOpen ? (
@@ -171,19 +175,18 @@ export default function Sidebar({
                   </button>
                 )}
 
-                {/* Show edit/delete only when sidebar is open */}
                 {isOpen && editingChatId !== chat.id && (
                   <div className="flex gap-1 items-center ml-1">
                     <button
                       onClick={(e) => handleEditStart(e, chat)}
-                      className="p-1 rounded-md hover:bg-gray-600 transition"
+                      className="p-1 rounded-md hover:bg-white/10 transition"
                       aria-label="Edit chat title"
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
                       onClick={(e) => handleDelete(e, chat.id)}
-                      className="p-1 rounded-md hover:bg-red-600 transition"
+                      className="p-1 rounded-md hover:bg-red-500/20 transition"
                       aria-label="Delete chat"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -195,38 +198,41 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* Bottom section with user info and logout */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-700">
-          <div className="flex items-center justify-between">
-            {isOpen ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-sm font-medium">
-                    {userInitials}
+        {userName && (
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
+            <div className="flex items-center justify-between">
+              {isOpen ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-linear-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-sm font-medium">
+                      {userInitials}
+                    </div>
+                    <span className="text-sm truncate text-white/80">
+                      {userName}
+                    </span>
                   </div>
-                  <span className="text-sm truncate">{userName}</span>
+                  <button
+                    onClick={onSignOut}
+                    className="p-1 rounded-md hover:bg-white/10 transition"
+                    aria-label="Sign out"
+                  >
+                    <LogOut className="h-5 w-5" />
+                  </button>
+                </>
+              ) : (
+                <div className="flex justify-center w-full">
+                  <button
+                    onClick={onSignOut}
+                    className="p-1 rounded-md hover:bg-white/10 transition"
+                    aria-label="Sign out"
+                  >
+                    <LogOut className="h-5 w-5" />
+                  </button>
                 </div>
-                <button
-                  onClick={onSignOut}
-                  className="p-1 rounded-md hover:bg-gray-700 transition"
-                  aria-label="Sign out"
-                >
-                  <LogOut className="h-5 w-5" />
-                </button>
-              </>
-            ) : (
-              <div className="flex justify-center w-full">
-                <button
-                  onClick={onSignOut}
-                  className="p-1 rounded-md hover:bg-gray-700 transition"
-                  aria-label="Sign out"
-                >
-                  <LogOut className="h-5 w-5" />
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </aside>
     </>
   );

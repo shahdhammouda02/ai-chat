@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/hooks/useAuth";
 import { auth } from "@/app/lib/firebase-client";
 import { signOut } from "firebase/auth";
-import { LogOut } from "lucide-react";
+import { LogIn, LogOut, MessageSquare, Sparkles, Lock } from "lucide-react";
 import Sidebar from "@/app/components/Sidebar";
 import { Chat } from "@/app/modules/chat/chat.types";
 
@@ -18,6 +18,66 @@ async function fetchJSON(url: string, options?: RequestInit) {
   const res = await fetch(url, options);
   const data = await res.json();
   return { res, data };
+}
+
+function WelcomeScreen({ onSignIn }: { onSignIn: () => void }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#0d0f14]">
+      <div className="max-w-md w-full text-center space-y-6">
+        {/* Icon */}
+        <div className="flex justify-center">
+          <div className="w-20 h-20 rounded-2xl bg-linear-to-r from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <MessageSquare className="h-10 w-10 text-white" />
+          </div>
+        </div>
+
+        {/* Heading */}
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-white">Welcome to AI Chat</h1>
+          <p className="text-white/40 text-base leading-relaxed">
+            Your intelligent conversation partner. Sign in to start chatting
+            with AI and unlock the full experience.
+          </p>
+        </div>
+
+        {/* Features */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3 text-left backdrop-blur-sm">
+          {[
+            {
+              icon: <Sparkles className="h-4 w-4 text-indigo-400" />,
+              text: "Powered by Gemini AI for smart, accurate responses",
+            },
+            {
+              icon: <MessageSquare className="h-4 w-4 text-indigo-400" />,
+              text: "Save and manage all your conversations",
+            },
+            {
+              icon: <Lock className="h-4 w-4 text-indigo-400" />,
+              text: "Your chats are private and securely stored",
+            },
+          ].map((item, i) => (
+            <div key={i} className="flex items-start gap-3">
+              <div className="mt-0.5 shrink-0">{item.icon}</div>
+              <span className="text-sm text-white/60">{item.text}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* CTA */}
+        <button
+          onClick={onSignIn}
+          className="w-full flex items-center justify-center gap-2 bg-linear-to-r from-indigo-500 to-purple-500 text-white py-3 px-6 rounded-xl font-semibold text-base hover:opacity-90 transition shadow-md shadow-indigo-500/20"
+        >
+          <LogIn className="h-5 w-5" />
+          Sign In to Get Started
+        </button>
+
+        <p className="text-xs text-white/30">
+          Don&apos;t have an account? You can create one on the sign-in page.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function ChatPageContent() {
@@ -39,12 +99,7 @@ function ChatPageContent() {
   const currentChatTitle = currentChat?.title || "AI Chat";
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/auth/login");
-    }
-  }, [user, authLoading, router]);
-
-  useEffect(() => {
+    if (!user) return;
     if (currentChatId && currentChatId !== urlChatId) {
       router.replace(`/?chat=${currentChatId}`, { scroll: false });
     } else if (
@@ -56,7 +111,7 @@ function ChatPageContent() {
     } else if (!currentChatId && urlChatId) {
       router.replace("/", { scroll: false });
     }
-  }, [currentChatId, urlChatId, chats, router]);
+  }, [currentChatId, urlChatId, chats, router, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -226,6 +281,10 @@ function ChatPageContent() {
     router.push("/auth/login");
   }, [router]);
 
+  const handleGoToLogin = useCallback(() => {
+    router.push("/auth/login");
+  }, [router]);
+
   const handleDeleteChat = useCallback(
     async (chatId: string) => {
       if (!user) return;
@@ -261,8 +320,6 @@ function ChatPageContent() {
 
   const handleSelectChat = useCallback((chatId: string) => {
     setCurrentChatId(chatId);
-    // Do NOT close sidebar when selecting a chat
-    // setSidebarOpen(false);
   }, []);
 
   const toggleSidebar = useCallback(() => setSidebarOpen((prev) => !prev), []);
@@ -317,18 +374,66 @@ function ChatPageContent() {
 
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-gray-500">Loading...</div>
+      <div className="flex items-center justify-center h-screen bg-[#0d0f14]">
+        <div className="text-white/50">Loading...</div>
       </div>
     );
   }
 
-  if (!user) return null;
+  // Unauthenticated view
+  if (!user) {
+    return (
+      <div className="flex h-screen bg-[#0d0f14]">
+        {/* Minimal sidebar — no chats, new chat disabled */}
+        <Sidebar
+          isOpen={sidebarOpen}
+          onToggle={toggleSidebar}
+          chats={[]}
+          currentChatId={null}
+          onSelectChat={() => {}}
+          onNewChat={() => {}}
+          onDeleteChat={async () => {}}
+          onRenameChat={async () => {}}
+          userName=""
+          onSignOut={() => {}}
+          disabled={true}
+        />
 
+        <div
+          className={`flex-1 flex flex-col transition-all duration-300 ${
+            sidebarOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-16"
+          } pl-14 md:pl-0`}
+        >
+          {/* Header with Sign In button */}
+          <div className="bg-linear-to-r from-indigo-500 to-purple-500 text-white py-4 px-4 flex justify-between items-center shadow-md sticky top-0 z-20 h-16">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="w-10 md:hidden shrink-0" />
+              <span className="font-semibold text-base md:text-lg truncate ml-3">
+                AI Chat
+              </span>
+            </div>
+            <button
+              onClick={handleGoToLogin}
+              className="bg-white/10 backdrop-blur-sm text-white p-2 md:px-4 md:py-1 rounded-md hover:bg-white/20 transition flex items-center justify-center gap-2 shrink-0"
+            >
+              <span className="hidden md:inline text-sm font-medium">
+                Sign In
+              </span>
+              <LogIn className="h-5 w-5 md:hidden" />
+            </button>
+          </div>
+
+          <WelcomeScreen onSignIn={handleGoToLogin} />
+        </div>
+      </div>
+    );
+  }
+
+  // Authenticated view
   const userName = user.displayName || user.email || "User";
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-[#0d0f14]">
       <Sidebar
         isOpen={sidebarOpen}
         onToggle={toggleSidebar}
@@ -346,10 +451,10 @@ function ChatPageContent() {
       <div
         className={`flex-1 flex flex-col transition-all duration-300 ${
           sidebarOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-16"
-        } pl-14 md:pl-0`} 
+        } pl-14 md:pl-0`}
       >
         {/* Header */}
-        <div className="bg-indigo-500 text-white py-4 px-4 flex justify-between items-center shadow-md sticky top-0 z-20 h-16">
+        <div className="bg-linear-to-r from-indigo-500 to-purple-500 text-white py-4 px-4 flex justify-between items-center shadow-md sticky top-0 z-20 h-16">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <div className="w-10 md:hidden shrink-0" />
             <span className="font-semibold text-base md:text-lg truncate ml-3">
@@ -358,9 +463,11 @@ function ChatPageContent() {
           </div>
           <button
             onClick={handleSignOut}
-            className="bg-white text-indigo-500 p-2 md:px-4 md:py-1 rounded-md hover:bg-indigo-50 transition flex items-center justify-center shrink-0"
+            className="bg-white/10 backdrop-blur-sm text-white p-2 md:px-4 md:py-1 rounded-md hover:bg-white/20 transition flex items-center justify-center shrink-0"
           >
-            <span className="hidden md:inline text-sm font-medium">Sign Out</span>
+            <span className="hidden md:inline text-sm font-medium">
+              Sign Out
+            </span>
             <LogOut className="h-5 w-5 md:hidden" />
           </button>
         </div>
@@ -368,17 +475,24 @@ function ChatPageContent() {
         {/* Chat Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {messages.map((msg, idx) => (
-            <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[85%] md:max-w-[70%] px-4 py-3 rounded-2xl text-sm shadow-sm ${
-                  msg.role === "user" ? "bg-indigo-100 text-indigo-900 rounded-br-sm" : "bg-white text-gray-800 border rounded-bl-sm"
-              }`}>
+            <div
+              key={idx}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-[85%] md:max-w-[70%] px-4 py-3 rounded-2xl text-sm shadow-sm ${
+                  msg.role === "user"
+                    ? "bg-linear-to-r from-indigo-500/20 to-purple-500/20 text-white rounded-br-sm"
+                    : "bg-white/5 border border-white/10 text-white/80 rounded-bl-sm"
+                }`}
+              >
                 {msg.content}
               </div>
             </div>
           ))}
           {loading && (
             <div className="flex justify-start">
-              <div className="bg-white border px-4 py-3 rounded-2xl shadow-sm text-sm animate-pulse text-gray-500">
+              <div className="bg-white/5 border border-white/10 px-4 py-3 rounded-2xl shadow-sm text-sm animate-pulse text-white/40">
                 AI is typing...
               </div>
             </div>
@@ -387,7 +501,7 @@ function ChatPageContent() {
         </div>
 
         {/* Input Area */}
-        <div className="border-t bg-white p-4 flex gap-3">
+        <div className="border-t border-white/10 bg-white/5 backdrop-blur-sm p-4 flex gap-3">
           <input
             type="text"
             value={input}
@@ -395,12 +509,12 @@ function ChatPageContent() {
             onKeyDown={handleKeyDown}
             placeholder="Type your message..."
             disabled={loading}
-            className="flex-1 border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-100"
+            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-white/5 disabled:opacity-50"
           />
           <button
             onClick={handleSend}
             disabled={loading || !input.trim()}
-            className="bg-indigo-500 text-white px-6 py-3 rounded-xl text-sm font-medium hover:bg-indigo-600 transition"
+            className="bg-linear-to-r from-indigo-500 to-purple-500 text-white px-6 py-3 rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
           >
             Send
           </button>
@@ -412,7 +526,9 @@ function ChatPageContent() {
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense
+      fallback={<div className="bg-[#0d0f14] text-white/50">Loading...</div>}
+    >
       <ChatPageContent />
     </Suspense>
   );

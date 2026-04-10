@@ -17,15 +17,11 @@ export default function LoginPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-gray-950">
         <div className="text-gray-500">Loading...</div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <AuthForm />
-    </div>
-  );
+  return <AuthForm />;
 }
