@@ -105,41 +105,39 @@ describe("ChatPage Integration Tests", () => {
     expect(screen.getByText("Test User")).toBeInTheDocument();
   });
 
- it("allows the user to type and send a message", async () => {
-  const user = userEvent.setup();
-  
-  mockAuthenticatedUser();
-  mockUrlChatId(null);
+  it("allows the user to type and send a message", async () => {
+    const user = userEvent.setup();
+    
+    mockAuthenticatedUser();
+    mockUrlChatId(null);
 
-  mockFetch
-    .mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
-    .mockResolvedValueOnce({ ok: true, json: async () => ({ chat: { id: "new-1", title: "New" } }) })
-    .mockResolvedValueOnce({ ok: true, json: async () => ({ reply: "AI Response" }) })
-    .mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) });
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ chat: { id: "new-1", title: "New" } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ reply: "AI Response" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ chats: [] }) });
 
-  await act(async () => {
-    render(<ChatPage />);
-  });
+    await act(async () => {
+      render(<ChatPage />);
+    });
 
-  await waitFor(() => {
-    expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
-  });
+    await waitFor(() => {
+      expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
+    });
 
-  const input = await screen.findByPlaceholderText(/type your message/i);
+    const input = await screen.findByPlaceholderText(/type your message/i);
+    await user.type(input, "Hello");
+    expect(input).toHaveValue("Hello");
 
-  // userEvent يحاكي الكتابة الحقيقية ويحدّث الـ state صح
-  await user.type(input, "Hello");
+    const sendButton = screen.getByRole("button", { name: /send/i });
+    expect(sendButton).not.toBeDisabled();
 
-  expect(input).toHaveValue("Hello");
+    await user.click(sendButton);
 
-  const sendButton = screen.getByRole("button", { name: /send/i });
-  expect(sendButton).not.toBeDisabled();
+    const aiResponse = await screen.findByText(/AI Response/i, {}, { timeout: 5000 });
+    expect(aiResponse).toBeInTheDocument();
+  }, 15000);
 
-  await user.click(sendButton);
-
-  const aiResponse = await screen.findByText(/AI Response/i, {}, { timeout: 5000 });
-  expect(aiResponse).toBeInTheDocument();
-}, 15000);
   describe("Sidebar Actions", () => {
     const mockChats: Chat[] = [
       { id: "c1", title: "Chat One", userId: "123", createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
@@ -188,7 +186,8 @@ describe("ChatPage Integration Tests", () => {
 
       await act(async () => { fireEvent.click(secondChat); });
 
-      expect(secondChat.closest("button")).toHaveClass("bg-indigo-700");
+      // تعديل: التحقق من الكلاس الجديد المستخدم في الكود المعدل
+      expect(secondChat.closest("button")).toHaveClass("bg-linear-to-r from-indigo-500/30 to-purple-500/30");
     });
   });
 
@@ -207,15 +206,22 @@ describe("ChatPage Integration Tests", () => {
     expect(screen.getByRole("heading", { name: /ai chat/i })).toBeVisible();
   });
 
-  it("redirects to login if not authenticated", async () => {
+  it("shows welcome screen when not authenticated instead of redirecting", async () => {
     const routerPush = jest.fn();
     (useRouter as jest.Mock).mockReturnValue({ push: routerPush, replace: jest.fn() });
     (useAuth as jest.Mock).mockReturnValue({ user: null, loading: false });
 
-    await act(async () => { render(<ChatPage />); });
-
-    await waitFor(() => {
-      expect(routerPush).toHaveBeenCalledWith("/auth/login");
+    await act(async () => {
+      render(<ChatPage />);
     });
+
+    // التحقق من ظهور واجهة الترحيب بدلاً من التوجيه التلقائي
+    await waitFor(() => {
+      expect(screen.getByText(/Welcome to AI Chat/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Sign In to Get Started/i })).toBeInTheDocument();
+    });
+
+    // التأكد أنه لم يتم التوجيه تلقائيًا
+    expect(routerPush).not.toHaveBeenCalled();
   });
 });
