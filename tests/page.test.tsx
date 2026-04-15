@@ -186,7 +186,6 @@ describe("ChatPage Integration Tests", () => {
 
       await act(async () => { fireEvent.click(secondChat); });
 
-      // تعديل: التحقق من الكلاس الجديد المستخدم في الكود المعدل
       expect(secondChat.closest("button")).toHaveClass("bg-linear-to-r from-indigo-500/30 to-purple-500/30");
     });
   });
@@ -215,13 +214,11 @@ describe("ChatPage Integration Tests", () => {
       render(<ChatPage />);
     });
 
-    // التحقق من ظهور واجهة الترحيب بدلاً من التوجيه التلقائي
     await waitFor(() => {
       expect(screen.getByText(/Welcome to AI Chat/i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Sign In to Get Started/i })).toBeInTheDocument();
     });
 
-    // التأكد أنه لم يتم التوجيه تلقائيًا
     expect(routerPush).not.toHaveBeenCalled();
   });
 });
