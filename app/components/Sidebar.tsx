@@ -141,7 +141,7 @@ export default function Sidebar({
             {safeChats.map((chat) => (
               <div
                 key={chat.id}
-                className="flex items-center justify-between group relative"
+                className="flex items-center group relative"
               >
                 {editingChatId === chat.id ? (
                   <input
@@ -157,41 +157,45 @@ export default function Sidebar({
                     onClick={(e) => e.stopPropagation()}
                   />
                 ) : (
-                  <button
-                    onClick={() => onSelectChat(chat.id)}
-                    className={`${
-                      isOpen ? "flex-1 text-left" : "flex justify-center w-full"
-                    } px-3 py-2 rounded-md ${
-                      currentChatId === chat.id
-                        ? "bg-linear-to-r from-indigo-500/30 to-purple-500/30 text-white"
-                        : "hover:bg-white/5"
-                    }`}
-                  >
-                    {isOpen ? (
-                      <span className="truncate">{chat.title}</span>
-                    ) : (
-                      <MessageSquare className="h-5 w-5" />
+                  <>
+                    <button
+                      onClick={() => onSelectChat(chat.id)}
+                      className={`flex-1 text-left px-3 py-2 rounded-md truncate ${
+                        currentChatId === chat.id
+                          ? "bg-linear-to-r from-indigo-500/30 to-purple-500/30 text-white"
+                          : "hover:bg-white/5"
+                      }`}
+                      title={isOpen ? chat.title : undefined}
+                    >
+                      {isOpen ? (
+                        <span className="block truncate">{chat.title}</span>
+                      ) : (
+                        <div className="flex justify-center w-full">
+                          <MessageSquare className="h-5 w-5 shrink-0" />
+                        </div>
+                      )}
+                    </button>
+                    
+                    {/* Action buttons - fixed position, not affected by title length */}
+                    {isOpen && (
+                      <div className="flex gap-1 items-center shrink-0 ml-2">
+                        <button
+                          onClick={(e) => handleEditStart(e, chat)}
+                          className="p-1 rounded-md hover:bg-white/10 transition shrink-0"
+                          aria-label="Edit chat title"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={(e) => handleDelete(e, chat.id)}
+                          className="p-1 rounded-md hover:bg-red-500/20 transition shrink-0"
+                          aria-label="Delete chat"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     )}
-                  </button>
-                )}
-
-                {isOpen && editingChatId !== chat.id && (
-                  <div className="flex gap-1 items-center ml-1">
-                    <button
-                      onClick={(e) => handleEditStart(e, chat)}
-                      className="p-1 rounded-md hover:bg-white/10 transition"
-                      aria-label="Edit chat title"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDelete(e, chat.id)}
-                      className="p-1 rounded-md hover:bg-red-500/20 transition"
-                      aria-label="Delete chat"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                  </>
                 )}
               </div>
             ))}
@@ -203,17 +207,20 @@ export default function Sidebar({
             <div className="flex items-center justify-between">
               {isOpen ? (
                 <>
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-linear-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-sm font-medium">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-full bg-linear-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-sm font-medium shrink-0">
                       {userInitials}
                     </div>
-                    <span className="text-sm truncate text-white/80">
+                    <span 
+                      className="text-sm truncate text-white/80"
+                      title={userName}
+                    >
                       {userName}
                     </span>
                   </div>
                   <button
                     onClick={onSignOut}
-                    className="p-1 rounded-md hover:bg-white/10 transition"
+                    className="p-1 rounded-md hover:bg-white/10 transition shrink-0 ml-2"
                     aria-label="Sign out"
                   >
                     <LogOut className="h-5 w-5" />
