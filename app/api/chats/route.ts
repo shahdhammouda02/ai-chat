@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyFirebaseToken } from "@/app/lib/verify-token";
-import { ChatService } from "@/app/modules/chat/chat.service";
 import { ChatRepository } from "@/app/modules/chat/chat.repository";
 
-const chatService = new ChatService();
 const chatRepository = new ChatRepository();
 
 export async function GET(req: Request) {
@@ -31,10 +29,9 @@ export async function POST(req: Request) {
     const decoded = await verifyFirebaseToken(token);
     const userId = decoded.uid;
 
-    // Create a new chat via the service (this only returns the chat ID)
-    const chatId = await chatService.createNewChat(userId);
+    // Create a new chat via the repository
+    const chatId = await chatRepository.createChat(userId, "New Chat");
 
-    // Return a minimal chat object (the client only needs id and title)
     const chat = {
       id: chatId,
       title: "New Chat",

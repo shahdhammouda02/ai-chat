@@ -5,6 +5,7 @@ export async function verifyFirebaseToken(token: string) {
     const decoded = await getAuth().verifyIdToken(token);
     return decoded;
   } catch (error) {
+    console.error("Token verification failed:", error);
     throw new Error("Unauthorized");
   }
 }
