@@ -73,11 +73,11 @@ function WelcomeScreen({ onSignIn }: { onSignIn: () => void }) {
 function ChatPageContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  
+
   const {
     chats,
     currentChatId,
@@ -125,6 +125,30 @@ function ChatPageContent() {
     sidebarOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-16"
   }`;
 
+  function formatMessageContent(content: string) {
+    // Replace **bold** with <strong> tags
+    let formatted = content.replace(
+      /\*\*(.*?)\*\*/g,
+      '<strong class="font-bold text-indigo-300">$1</strong>',
+    );
+
+    // Replace line breaks with <br /> tags
+    formatted = formatted.replace(/\n/g, "<br />");
+
+    // Handle bullet points (lines starting with • or -)
+    formatted = formatted.replace(
+      /^[•\-]\s+(.+)$/gm,
+      '<span class="block ml-4">• $1</span>',
+    );
+
+    // Handle numbered lists
+    formatted = formatted.replace(
+      /^(\d+)\.\s+(.+)$/gm,
+      '<span class="block ml-4">$1. $2</span>',
+    );
+
+    return formatted;
+  }
   return (
     <div className="flex h-dvh w-full bg-[#0d0f14] overflow-hidden">
       <Sidebar
@@ -191,7 +215,18 @@ function ChatPageContent() {
                         : "bg-white/5 border border-white/10 text-white/80 rounded-bl-sm"
                     }`}
                   >
-                    {msg.content}
+                    {msg.role === "assistant" ? (
+                      <div
+                        className="wrap-break-words space-y-1"
+                        dangerouslySetInnerHTML={{
+                          __html: formatMessageContent(msg.content),
+                        }}
+                      />
+                    ) : (
+                      <div className="whitespace-pre-wrap wrap-break-words">
+                        {msg.content}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
